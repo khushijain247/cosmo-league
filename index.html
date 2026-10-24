@@ -75,7 +75,14 @@ button.sm{font-size:13px;min-height:40px;padding:6px 14px}button.on{background:v
 <script>
 /* ===== CONFIG ===== */
 // Paste your Firebase Realtime Database config to enable live sync across devices. null = local demo (same browser only).
-const FIREBASE = null; // {apiKey:"",authDomain:"",databaseURL:"https://YOUR-DB.firebasedatabase.app",projectId:"",appId:""}
+const FIREBASE = {
+    apiKey: "AIzaSyAInPgojkOAdRoxLExRKLu3Cg0LOoeEBGg",
+    authDomain: "cosmo-league.firebaseapp.com",
+    databaseURL: "https://cosmo-league-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "cosmo-league",
+    appId: "1:738011591987:web:f1720b1535bf923ffa3a46"
+    };
+ // {apiKey:"",authDomain:"",databaseURL:"https://YOUR-DB.firebasedatabase.app",projectId:"",appId:""}
 const PIN='cosmo4', OVERS=8, BALLS=OVERS*6, ROOT='cosmo4', AR={run:1,wkt:20}; // all-rounder points = runs*1 + wickets*20
 const DEF={teams:[
  {id:'t1',name:'Kumat Warriors',color:'#e63946'},{id:'t2',name:'Tigers Cosmo',color:'#ffd23f'},
