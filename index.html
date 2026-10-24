@@ -390,7 +390,7 @@ function draw(keep){
  norm();
  const h=v(),adm=['a','b','bonus','setup'].includes(h);
  if(adm&&!admin()){if(prompt('Admin PIN')==PIN)localStorage.adm='1';else{location.hash='live';return}}
- const tabs=[['live','Live'],['table','Table'],['awards','Awards'],['info','Rules & Schedule'],...(admin()?[['a','Turf A'],['b','Turf B'],['bonus','Bonus'],['setup','Setup']]:[])];
+ const tabs=[['live','Live'],['table','Table'],['info','Rules & Schedule'],...(admin()?[['a','Turf A'],['b','Turf B'],['bonus','Bonus'],['setup','Setup'],['awards','Awards']]:[])];
  $('#nav').innerHTML=tabs.map(([k,l])=>`<a href="#${k}" class="np ${h==k?'on':''}">${l}</a>`).join('');
  const all=ms(),lvN=all.filter(m=>m.status=='live').length;
  $('#stats').innerHTML=`<div><b>${all.filter(m=>m.status=='done').length}</b>Played</div><div><b>${lvN}</b>Live now</div><div><b>${all.reduce((a,m)=>a+calc(m,1).r+calc(m,2).r,0)}</b>Total runs</div>`;
