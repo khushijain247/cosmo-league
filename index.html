@@ -75,20 +75,13 @@ button.sm{font-size:13px;min-height:40px;padding:6px 14px}button.on{background:v
 <script>
 /* ===== CONFIG ===== */
 // Paste your Firebase Realtime Database config to enable live sync across devices. null = local demo (same browser only).
-const FIREBASE = {
-    apiKey: "AIzaSyAInPgojkOAdRoxLExRKLu3Cg0LOoeEBGg",
-    authDomain: "cosmo-league.firebaseapp.com",
-    databaseURL: "https://cosmo-league-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "cosmo-league",
-    appId: "1:738011591987:web:f1720b1535bf923ffa3a46"
-    };
- // {apiKey:"",authDomain:"",databaseURL:"https://YOUR-DB.firebasedatabase.app",projectId:"",appId:""}
+const FIREBASE = null; // {apiKey:"",authDomain:"",databaseURL:"https://YOUR-DB.firebasedatabase.app",projectId:"",appId:""}
 const PIN='cosmo4', OVERS=8, BALLS=OVERS*6, ROOT='cosmo4', AR={run:1,wkt:20}; // all-rounder points = runs*1 + wickets*20
 const DEF={teams:[
  {id:'t1',name:'Kumat Warriors',color:'#e63946'},{id:'t2',name:'Tigers Cosmo',color:'#ffd23f'},
  {id:'t3',name:'Magnus Warriors',color:'#2a9df4'},{id:'t4',name:'United Strikers',color:'#f1f5f9'},
  {id:'t5',name:"V-Hero's Strikers",color:'#ff8c1a'}],players:[],
- rules:'8 overs per innings, 6 balls per over.\n3rd ball of every over is the BOOM-BOOM ball: all runs on it are doubled.\nEvery wicket costs the batting team 5 runs.\nWide and no-ball give +1 run and the ball is re-bowled.\nWin = 2 points. Table is ranked by points, then NRR, then run difference.',
+ rules:'8 overs per innings, 6 balls per over.\n3rd ball of every over is the BOOM-BOOM ball: all runs on it are doubled.\nEvery wicket costs the batting team 5 runs, but the batter is NOT out: the same pair keeps batting.\nEach pair bats for 2 overs (4 pairs per innings).\nWide and no-ball give +1 run and the ball is re-bowled.\nWin = 2 points. Table is ranked by points, then total run difference, then fewer wickets lost.',
  sched:[]};
 // Starting roster: [women, men] per team. Edit anytime from the Setup page.
 const R={
@@ -139,7 +132,9 @@ const init=n=>n.split(/[\s']+/).filter(Boolean).map(w=>w[0]).join('').slice(0,2)
 const av=x=>x.logo?`<img class="av" src="${x.logo}" alt="">`:`<span class="av" style="--c:${x.color}">${esc(init(x.name))}</span>`;
 const fmt=t=>new Date(t).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}).toUpperCase();
 const dtxt=e=>{const w=e.w||{t:'b'},bn=pn(e.o),f=w.f?pn(w.f):'—';return({b:`b ${bn}`,ct:`c ${f} b ${bn}`,cb:`c & b ${bn}`,lbw:`lbw b ${bn}`,ro:`run out (${f})`,st:`st ${f} b ${bn}`,hw:`hit wicket b ${bn}`})[w.t]||`b ${bn}`};
-const outsOf=(m,i)=>evs(m).filter(e=>e.i==i&&e.k=='w').map(e=>(e.w||{x:e.s}).x);
+const bowledOf=(m,i)=>{const c=m.cur||{},u=new Set();evs(m).filter(e=>e.i==i).forEach(e=>u.add(e.o));u.delete('');u.delete(undefined);u.delete(c.o);return[...u]};
+const fhit=(m,i)=>{const a=evs(m).filter(e=>e.i==i);for(let j=a.length-1;j>=0;j--){if(a[j].k=='wd')continue;return a[j].k=='nb'}return false};
+const outsOf=(m,i)=>{const c=m.cur||{},u=new Set();evs(m).filter(e=>e.i==i).forEach(e=>{u.add(e.s);(e.p||[]).slice(0,2).forEach(x=>u.add(x))});u.delete('');u.delete(undefined);u.delete(c.s);u.delete(c.n);return[...u]};
 const BD={w:'WICKET',six:'SIX',four:'FOUR',run:'RUN',x:'EXTRA',cm:'COMMENT',bn:'BONUS'};
 function feed(m){const out=[],b={1:0,2:0},nm=T(m.t1).name+' '+T(m.t2).name;
  const add=(k,q,ty,tx,lab,i,t)=>{const bt=T(batT(m,i));tx=`<b style="color:${bt.color}">${esc(bt.name)}</b> · ${tx}`;
@@ -176,22 +171,22 @@ function card(t){
  return `<section class="card ${m.status=='live'?'live':''}" style="--c:${bt.color}">${h}
  <div class="mh">${av(bt)}<div><div class="tn">${esc(bt.name)}</div><div class="vs">vs ${esc(bw.name)} · Innings ${i}</div></div><div class="big">${c.r}/${c.w}<small>${ov(c.b)} OVERS</small></div></div>
  <div class="sb">${bx}</div>
- <div class="row"><span class="pill">🏏 <b>${pn(cu.s)}*</b></span><span class="pill">🏏 ${pn(cu.n)}</span><span class="pill">⚾ ${pn(cu.o)}</span>${bonusOf(m,bt.id)?`<span class="pill">🎁 ${bonusOf(m,bt.id)>0?'+':''}${bonusOf(m,bt.id)} bonus</span>`:''}${m.boom&&m.status=='live'?'<span class="pill" style="background:var(--acc);color:#000;border-color:var(--acc)">💥 BOOM-BOOM BALL</span>':''}</div>
+ <div class="row"><span class="pill">🏏 <b>${pn(cu.s)}*</b></span><span class="pill">🏏 ${pn(cu.n)}</span><span class="pill">⚾ ${pn(cu.o)}</span>${bonusOf(m,bt.id)?`<span class="pill">🎁 ${bonusOf(m,bt.id)>0?'+':''}${bonusOf(m,bt.id)} bonus</span>`:''}${m.status=='live'&&fhit(m,i)?'<span class="pill" style="background:var(--bad);color:#fff;border-color:var(--bad)">🎯 FREE HIT</span>':''}${m.boom&&m.status=='live'?'<span class="pill" style="background:var(--acc);color:#000;border-color:var(--acc)">💥 BOOM-BOOM BALL</span>':''}</div>
  ${lw?`<div class="cap" style="margin-top:12px"><span>Last wicket: <b style="color:var(--txt)">${lw}</b></span></div>`:''}
  <div class="bar"><i style="width:${pct}%"></i></div><div class="cap"><span>Overs used</span><span>${Math.round(pct)}%</span></div>
  <div class="row">${chips(m)}</div><div class="line">${line}</div></section>`}
 const live=()=>`<div class="layout"><div><h2 class="sec">TURFS</h2><div class="grid">${card('A')}${card('B')}</div></div>${activity()}</div>`;
 
 function standings(){
- const r={};S.cfg.teams.forEach(t=>r[t.id]={t,p:0,w:0,l:0,rf:0,bf:0,ra:0,ba:0});
+ const r={};S.cfg.teams.forEach(t=>r[t.id]={t,p:0,w:0,l:0,rf:0,bf:0,ra:0,ba:0,wl:0});
  ms().filter(m=>m.status=='done'&&r[m.winner]).forEach(m=>{[1,2].forEach(i=>{const c=calc(m,i),a=r[batT(m,i)],d=r[bowT(m,i)];
-  a.rf+=c.r;a.bf+=c.b;d.ra+=c.r;d.ba+=c.b});
+  a.rf+=c.r;a.bf+=c.b;a.wl+=c.w;d.ra+=c.r;d.ba+=c.b});
   [m.t1,m.t2].forEach(id=>{r[id].p++;m.winner==id?r[id].w++:r[id].l++})});
  return Object.values(r).map(x=>({...x,pts:x.w*2,rd:x.rf-x.ra,nrr:(x.bf?x.rf*6/x.bf:0)-(x.ba?x.ra*6/x.ba:0)}))
-  .sort((a,b)=>b.pts-a.pts||b.nrr-a.nrr||b.rd-a.rd)}
-const table=()=>`<section class="card"><div class="th">POINTS TABLE</div><table><tr><th>Team</th><th>P</th><th>W</th><th>L</th><th>Pts</th><th>RD</th><th>NRR</th></tr>
- ${standings().map((x,i)=>`<tr style="--c:${x.t.color}"><td><span class="dot"></span>${i+1}. ${esc(x.t.name)}</td><td>${x.p}</td><td>${x.w}</td><td>${x.l}</td><td><b>${x.pts}</b></td><td>${x.rd>0?'+':''}${x.rd}</td><td>${x.nrr>0?'+':''}${x.nrr.toFixed(3)}</td></tr>`).join('')}</table>
- <p class="mut" style="margin-top:8px;font-size:12px">Ranked by points, then NRR, then run difference. NRR = runs/over scored − runs/over conceded.</p></section>`;
+  .sort((a,b)=>b.pts-a.pts||b.rd-a.rd||a.wl-b.wl)}
+const table=()=>`<section class="card"><div class="th">POINTS TABLE</div><table><tr><th>Team</th><th>P</th><th>W</th><th>L</th><th>Pts</th><th>RD</th><th>Wkts</th></tr>
+ ${standings().map((x,i)=>`<tr style="--c:${x.t.color}"><td><span class="dot"></span>${i+1}. ${esc(x.t.name)}</td><td>${x.p}</td><td>${x.w}</td><td>${x.l}</td><td><b>${x.pts}</b></td><td>${x.rd>0?'+':''}${x.rd}</td><td>${x.wl}</td></tr>`).join('')}</table>
+ <p class="mut" style="margin-top:8px;font-size:12px">Ranked by points, then total run difference (RD) across all matches, then fewer wickets lost (Wkts).</p></section>`;
 
 function stats(){const s={},g=id=>s[id]||(s[id]={r:0,bf:0,f:0,x:0,w:0,rc:0,bb:0});
  ms().forEach(m=>evs(m).forEach(e=>{const f=e.b?2:1,a=g(e.s),o=g(e.o);
@@ -210,9 +205,9 @@ function awards(){
  <p class="mut" style="font-size:12px">Boom-Boom doubled runs count toward batting/bowling totals. All-rounder = runs×${AR.run} + wickets×${AR.wkt} (needs at least one ball batted and bowled).</p>`}
 
 /* ===== SCORER ===== */
-const opts=(team,sel,ex=[])=>{const pl=S.cfg.players.filter(p=>p.team==team),o=p=>`<option value="${p.id}" ${p.id==sel?'selected':''}>${esc(p.name)}${ex.includes(p.id)?' (out)':''}</option>`,
+const opts=(team,sel,ex=[],lab='batted')=>{const pl=S.cfg.players.filter(p=>p.team==team),o=p=>`<option value="${p.id}" ${p.id==sel?'selected':''}>${esc(p.name)}${ex.includes(p.id)?` (${lab})`:''}</option>`,
  a=pl.filter(p=>!ex.includes(p.id)),b=pl.filter(p=>ex.includes(p.id));
- return `<option value="">— select —</option>`+a.map(o).join('')+(b.length?`<optgroup label="Already out (only if needed as replacement)">${b.map(o).join('')}</optgroup>`:'')};
+ return `<option value="">— select —</option>`+a.map(o).join('')+(b.length?`<optgroup label="Already ${lab} (only if needed as replacement)">${b.map(o).join('')}</optgroup>`:'')};
 function scorer(t){
  const m=turfM(t),tt=S.cfg.teams.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
  if(!m||m.status=='done')return newMatch(t);
@@ -222,21 +217,15 @@ function scorer(t){
  return `<section class="card" style="--c:${T(bt).color}"><div class="th"><span>TURF ${t} — SCORER</span><span class="pill live">${m.status.toUpperCase()}</span></div>
  <div class="vs"><span class="tn">${esc(T(bt).name)}</span> vs ${esc(T(bw).name)} · Innings ${i}${i==2?` · Target ${c1.r+1}`:''}</div>
  <div class="score">${c.r}<small>/${c.w}</small> <small>(${ov(c.b)}/${OVERS})</small></div>
- <div class="row">${chips(m)}</div><p class="hint">${!lv?'Innings over — tap the winning team at the bottom to finish the match':full?'Overs complete — tap End Innings':!cu.s?'Choose the striker (the new batter after a wicket)':!cu.n?'Choose the non-striker':!cu.o?'Choose the bowler for this over':'Tap the runs after every ball'}</p>
- <div class="sel"><div><label>Striker</label><select class="${cu.s?'':'need'}" onchange="cur('${t}','s',this.value)">${opts(bt,cu.s,outsOf(m,i))}</select></div>
- <div><label>Non-striker</label><select class="${cu.n?'':'need'}" onchange="cur('${t}','n',this.value)">${opts(bt,cu.n,outsOf(m,i))}</select></div>
- <div><label>Bowler</label><select class="${cu.o?'':'need'}" onchange="cur('${t}','o',this.value)">${opts(bw,cu.o)}</select></div></div>
+ <div class="row">${chips(m)}</div><p class="hint">${lv&&fhit(m,i)?'🎯 FREE HIT — only a run out is possible. ':''}${!lv?'Innings over — tap the winning team at the bottom to finish the match':full?'Overs complete — tap End Innings':!cu.s?'Choose the striker — a new pair bats every 2 overs':!cu.n?'Choose the non-striker':!cu.o?'Choose the bowler for this over':`Tap the runs after every ball · ${12-c.b%12} balls left for this pair`}</p>
+ <div class="sel"><div><label>Striker</label><select class="${cu.s?'':'need'}" onchange="cur('${t}','s',this.value)">${opts(bt,cu.s,outsOf(m,i),'batted')}</select></div>
+ <div><label>Non-striker</label><select class="${cu.n?'':'need'}" onchange="cur('${t}','n',this.value)">${opts(bt,cu.n,outsOf(m,i),'batted')}</select></div>
+ <div><label>Bowler</label><select class="${cu.o?'':'need'}" onchange="cur('${t}','o',this.value)">${opts(bw,cu.o,bowledOf(m,i),'bowled')}</select></div></div>
  ${wpanel(t,cu,bw)}
  <div class="btns">${b('0','r',0)}${b('1','r',1)}${b('2','r',2)}${b('3','r',3)}${b('4','r',4,'r4')}${b('6','r',6,'r6')}<button class="wk" ${lv?'':'disabled'} onclick="openW('${t}')">WICKET −5</button>
  <button class="${m.boom?'on':''}" ${lv?'':'disabled'} onclick="boom('${t}')">💥 BOOM ${m.boom?'ON':'off'}</button>
  ${b('Wide +1','wd',0,'ex')}${b('No-ball +1','nb',0,'ex')}<button ${lv?'':'disabled'} onclick="undo('${t}')">↶ Undo</button><button class="sm" onclick="abandon('${t}')">Abandon</button></div>
  <div class="btns" style="grid-template-columns:1fr 1fr"><button class="sm" ${lv?'':'disabled'} onclick="endInn('${t}')">End Innings</button><span></span></div>
- <div class="th" style="margin-top:14px">BONUS RUNS</div>
- <div class="sel"><div><label>Team</label><select id="bt_${t}"><option value="${m.t1}">${esc(T(m.t1).name)}</option><option value="${m.t2}">${esc(T(m.t2).name)}</option></select></div>
- <div><label>Runs (use − for a penalty)</label><input id="br_${t}" type="number" inputmode="numeric" placeholder="e.g. 5" style="width:100%"></div>
- <div><label>Reason (optional)</label><input id="bw_${t}" placeholder="e.g. Fair play" style="width:100%"></div></div>
- <div class="btns" style="grid-template-columns:1fr"><button class="sm on" onclick="addBonus('${t}')">＋ Add bonus runs</button></div>
- ${Object.values(m.bon||{}).map(x=>`<div class="row mut"><span class="dot" style="--c:${T(x.team).color}"></span>${esc(T(x.team).name)}: <b style="color:var(--txt)">${x.r>0?'+':''}${x.r}</b>${x.why?' · '+esc(x.why):''} <button class="sm" onclick="delBonus('${t}',${x.id})">✕</button></div>`).join('')}
  <div class="th" style="margin-top:14px">LIVE COMMENT (shown to spectators)</div>
  <div class="row"><input id="cm_${t}" placeholder="Type a comment…" style="flex:1;min-width:0"><button class="sm on" onclick="post('${t}')">Post</button></div>
  <div class="row">${['Drinks break','Review','Rain delay','Great catch!','Change of bowler'].map(x=>`<button class="sm" onclick="post('${t}',this.textContent)">${x}</button>`).join('')}</div>
@@ -257,15 +246,15 @@ function pickF(t,id){NM[t].first=id;draw(2)}
 function start(t){const n=NM[t],a=n.first,b=n.sel.find(x=>x!=a);if(!a||!b)return;
  const id='m'+Date.now();NM[t]={sel:[],first:''};save({id,turf:t,n:Date.now(),t1:a,t2:b,bat1:a,status:'live',inn:1,ev:[],cur:{s:'',n:'',o:''},boom:false})}
 const WS={A:null,B:null};
-function openW(t){const m=turfM(t),c=m.cur||{};if(!c.s||!c.n||!c.o)return alert('Choose the striker, non-striker and bowler first');if(calc(m,m.inn).b>=BALLS)return alert('Overs complete — tap End Innings');WS[t]={t:'',f:'',x:'s',r:0};draw(2)}
+function openW(t){const m=turfM(t),c=m.cur||{};if(!c.s||!c.n||!c.o)return alert('Choose the striker, non-striker and bowler first');if(calc(m,m.inn).b>=BALLS)return alert('Overs complete — tap End Innings');WS[t]={t:fhit(m,m.inn)?'ro':'',f:'',x:'s',r:0};draw(2)}
 function confirmW(t){const w=WS[t],m=turfM(t),c=m.cur;if(!w||!w.t)return;const x=(w.t=='ro'&&w.x=='n')?c.n:c.s;
  const info={t:w.t,f:['ct','st','ro'].includes(w.t)?w.f:'',x};WS[t]=null;act(t,'w',w.t=='ro'?w.r:0,info)}
-function wpanel(t,cu,bwT){const w=WS[t];if(!w)return '';
+function wpanel(t,cu,bwT){const w=WS[t];if(!w)return '';const mm=turfM(t)||{},fh=fhit(mm,mm.inn);
  const fl=k=>`<select style="width:100%;margin-top:6px" onchange="WS['${t}'].f=this.value;draw(2)"><option value="">— select fielder —</option>${S.cfg.players.filter(p=>p.team==bwT).map(p=>`<option value="${p.id}" ${p.id==w.f?'selected':''}>${esc(p.name)}</option>`).join('')}</select>`;
- const TY=[['b','Bowled'],['ct','Caught'],['cb','Caught & bowled'],['lbw','LBW'],['ro','Run out'],['st','Stumped'],['hw','Hit wicket']];
+ const TY=[['b','Bowled'],['ct','Caught'],['cb','Caught & bowled'],['lbw','LBW'],['ro','Run out'],['st','Stumped'],['hw','Hit wicket']].filter(([k])=>!fh||k=='ro');
  const ok=w.t&&(w.t!='ct'&&w.t!='st'||w.f);
  const tb=(k,n,on,fn)=>`<button class="tc ${on?'on':''}" style="--c:var(--bad)" onclick="${fn}">${n}</button>`;
- return `<div class="card" style="--c:var(--bad);margin-top:12px"><div class="th"><span>WICKET — HOW WAS HE OUT?</span><button class="sm" onclick="WS['${t}']=null;draw(2)">Cancel</button></div>
+ return `<div class="card" style="--c:var(--bad);margin-top:12px"><div class="th"><span>WICKET — HOW WAS HE OUT?${fh?' · FREE HIT: run out only':''}</span><button class="sm" onclick="WS['${t}']=null;draw(2)">Cancel</button></div>
  <div class="cg">${TY.map(([k,n])=>tb(k,n,w.t==k,`WS['${t}'].t='${k}';WS['${t}'].f='';draw(2)`)).join('')}</div>
  ${w.t=='ct'?`<div class="hint">Who took the catch?</div>${fl()}`:''}${w.t=='st'?`<div class="hint">Who is the wicket-keeper?</div>${fl()}`:''}
  ${w.t=='ro'?`<div class="hint">Who is run out?</div><div class="cg">${tb('s',pn(cu.s)+' (striker)',w.x=='s',`WS['${t}'].x='s';draw(2)`)}${tb('n',pn(cu.n)+' (non-striker)',w.x=='n',`WS['${t}'].x='n';draw(2)`)}</div>
@@ -274,19 +263,31 @@ function wpanel(t,cu,bwT){const w=WS[t];if(!w)return '';
 function post(t,q){const m=turfM(t),el=$('#cm_'+t),x=(q||(el&&el.value)||'').trim();if(!m||!x)return;m.cm=[...(m.cm||[]),{at:evs(m).length,i:m.inn,t:x,n:Date.now()}];save(m)}
 function delC(t){const m=turfM(t);m.cm=(m.cm||[]).slice(0,-1);save(m)}
 function cur(t,k,val){const m=turfM(t);m.cur={...(m.cur||{}),[k]:val};save(m)}
-function addBonus(t){const m=turfM(t),r=Math.round(Number($('#br_'+t).value));if(!m)return;if(!r)return alert('Type the bonus runs first (use a minus sign for a penalty)');
- m.bon=[...Object.values(m.bon||{}),{id:Date.now(),team:$('#bt_'+t).value,r,why:$('#bw_'+t).value.trim(),n:Date.now(),at:evs(m).length}];save(m)}
-function delBonus(t,id){const m=turfM(t);m.bon=Object.values(m.bon||{}).filter(x=>x.id!=id);save(m)}
+const BN={mid:''};
+function addBonus(){const m=ms().find(x=>x.id==$('#bn_m').value),r=Math.round(Number($('#bn_r').value));if(!m)return;if(!r)return alert('Type the bonus runs first (use a minus sign for a penalty)');
+ m.bon=[...Object.values(m.bon||{}),{id:Date.now(),team:$('#bn_t').value,r,why:$('#bn_w').value.trim(),n:Date.now(),at:evs(m).length}];save(m)}
+function delBonus(mid,id){const m=ms().find(x=>x.id==mid);if(!m)return;m.bon=Object.values(m.bon||{}).filter(x=>x.id!=id);save(m)}
+function bonusView(){const L=ms().sort((a,b)=>b.n-a.n);
+ if(!L.length)return `<section class="card"><div class="th">BONUS RUNS</div><p class="mut" style="margin-top:14px">No matches yet. Start a match, then add bonus runs here.</p></section>`;
+ const m=L.find(x=>x.id==BN.mid)||L[0],st=x=>x.status=='done'?'Final':x.status=='live'?'Live':'Result pending',lab=x=>`Turf ${x.turf} · ${esc(T(x.t1).name)} vs ${esc(T(x.t2).name)} · ${st(x)}`;
+ const all=L.flatMap(x=>Object.values(x.bon||{}).map(b=>({x,b})));
+ return `<div class="grid"><section class="card"><div class="th">GIVE BONUS RUNS</div><p class="hint">Pick the match and team, type the runs (use − for a penalty). It is added to that team's innings score.</p>
+ <div class="sel"><div><label>Match</label><select id="bn_m" onchange="BN.mid=this.value;draw(2)" style="width:100%">${L.map(x=>`<option value="${x.id}" ${x.id==m.id?'selected':''}>${lab(x)}</option>`).join('')}</select></div>
+ <div><label>Team</label><select id="bn_t" style="width:100%"><option value="${m.t1}">${esc(T(m.t1).name)}</option><option value="${m.t2}">${esc(T(m.t2).name)}</option></select></div>
+ <div><label>Runs</label><input id="bn_r" type="number" inputmode="numeric" placeholder="e.g. 5" style="width:100%"></div>
+ <div><label>Reason (optional)</label><input id="bn_w" placeholder="e.g. Fair play" style="width:100%"></div></div>
+ <div class="btns" style="grid-template-columns:1fr"><button class="on" onclick="addBonus()">＋ Add bonus runs</button></div></section>
+ <section class="card"><div class="th">ALL BONUS / PENALTY ENTRIES</div>${all.length?all.map(({x,b})=>`<div class="row"><span class="dot" style="--c:${T(b.team).color}"></span><span style="flex:1;min-width:0"><b>${esc(T(b.team).name)}</b>: <b style="color:var(--acc)">${b.r>0?'+':''}${b.r}</b>${b.why?' · '+esc(b.why):''}<br><small class="mut">${lab(x)}</small></span><button class="sm" onclick="delBonus('${x.id}',${b.id})">✕</button></div>`).join(''):'<p class="mut" style="margin-top:14px">No bonus runs given yet.</p>'}</section></div>`}
 function boom(t){const m=turfM(t);m.boom=!m.boom;save(m)}
 function act(t,k,r,wi){const m=turfM(t),c=m.cur||{},cc=calc(m,m.inn),leg=k=='r'||k=='w';
  if(cc.b>=BALLS)return alert('Overs complete — tap End Innings');
  if(leg?(!c.s||!c.n||!c.o):!c.o)return alert(leg?'Choose the striker, non-striker and bowler first':'Choose the bowler first');
  if(c.s&&c.s==c.n)return alert('Striker and non-striker cannot be the same player');
+ if(k=='w'&&fhit(m,m.inn)&&(!wi||wi.t!='ro'))return alert('Free hit — only a run out is possible');
  m.ev=[...evs(m),{t:Date.now(),i:m.inn,k,r,b:m.boom?1:0,s:c.s,o:c.o,p:[c.s,c.n,c.o],...(wi?{w:wi}:{})}];
  let s=c.s,n=c.n,o=c.o;
  if(k=='r'&&r%2)[s,n]=[n,s];
- if(k=='w'){if(wi.x==s)s='';else n=''}
- if(leg){const b=cc.b+1;m.boom=b%6==2;if(b%6==0){[s,n]=[n,s];o=''}}
+ if(leg){const b=cc.b+1;m.boom=b%6==2;if(b%6==0){[s,n]=[n,s];o='';if(b%12==0&&b<BALLS){s='';n=''}}}
  m.cur={s,n,o};save(m)}
 function undo(t){const m=turfM(t),a=evs(m),e=a[a.length-1];
  if(!e||e.i!=m.inn)return alert('Nothing to undo in this innings');
@@ -302,6 +303,7 @@ const tset=(id,k,v)=>cfg(c=>{if(k=='name'&&!v.trim())return;c.teams.find(x=>x.id
 const upd=(id,k,v)=>cfg(c=>{if(k=='name'&&!v.trim())return;c.players.find(x=>x.id==id)[k]=v.trim?v.trim():v});
 function logo(id,inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas');c.width=c.height=96;const k=96/Math.max(im.width,im.height);
   c.getContext('2d').drawImage(im,(96-im.width*k)/2,(96-im.height*k)/2,im.width*k,im.height*k);tset(id,'logo',c.toDataURL('image/png'))};im.src=r.result};r.readAsDataURL(f)}
+const plDL=()=>`<datalist id="pls">${S.cfg.players.map(p=>`<option value="${esc(p.name)}">`).join('')}</datalist>`;
 const rlist=r=>r==null?rlist(DEF.rules):typeof r=='string'?r.split('\n').map(x=>x.trim()).filter(Boolean):Object.values(r);
 const rs=c=>c.rules=rlist(c.rules);
 const rAdd=()=>cfg(c=>{rs(c).push('')});
@@ -314,14 +316,14 @@ const rBulk=mode=>{const L=$('#rbulk').value.split('\n').map(x=>x.replace(/^\s*(
  cfg(c=>{c.rules=mode=='replace'?L:rlist(c.rules).concat(L)});alert(L.length+' rules '+(mode=='replace'?'saved':'added'))};
 const rReset=()=>{if(confirm('Replace all rules with the default list?'))cfg(c=>{c.rules=rlist(DEF.rules)})};
 const sched=c=>c.sched=Object.values(c.sched||{});
-const sAdd=()=>cfg(c=>{sched(c).push({time:'',turf:'',t1:'',t2:'',note:''})});
+const sAdd=()=>cfg(c=>{sched(c).push({time:'',turf:'',t1:'',t2:'',note:'',ump:''})});
 const sSet=(i,k,v)=>cfg(c=>{const x=sched(c)[i];v=(v||'').trim();
  if((k=='t1'&&v&&v==x.t2)||(k=='t2'&&v&&v==x.t1)){alert('Pick two different teams');return}x[k]=v});
 const sDel=i=>cfg(c=>{sched(c).splice(i,1)});
 const sMv=(i,d)=>cfg(c=>{const a=sched(c),j=i+d;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]]});
 const tsel=(sel,fn)=>`<select onchange="${fn}" style="width:100%"><option value="">— team —</option>${S.cfg.teams.map(t=>`<option value="${t.id}" ${t.id==sel?'selected':''}>${esc(t.name)}</option>`).join('')}</select>`;
 function schedEd(c){const L=Object.values(c.sched||{});
- return `<section class="card"><div class="th">RULES</div><p class="hint">Edit, add, delete or reorder rules. Everyone sees the changes in the Rules &amp; Schedule tab.</p>
+ return `${plDL()}<section class="card"><div class="th">RULES</div><p class="hint">Edit, add, delete or reorder rules. Everyone sees the changes in the Rules &amp; Schedule tab.</p>
  ${rlist(c.rules).concat(rlist(c.rules).length?[]:['']).map((x,i)=>`<div class="row"><span class="mut" style="width:22px">${i+1}.</span><textarea rows="2" placeholder="Type a rule" onchange="rSet(${i},this.value)" style="flex:1;min-width:150px;min-height:48px;resize:vertical">${esc(x)}</textarea><button class="sm" onclick="rMv(${i},-1)">↑</button><button class="sm" onclick="rMv(${i},1)">↓</button><button class="sm" onclick="rDel(${i})">✕</button></div>`).join('')}
  <div class="btns" style="grid-template-columns:1fr 1fr"><button class="on" onclick="rAdd()">＋ Add rule</button><button class="sm" onclick="rReset()">Reset to default</button></div>
  <details style="margin-top:12px"><summary class="mut">Paste a long list of rules</summary>
@@ -334,7 +336,8 @@ function schedEd(c){const L=Object.values(c.sched||{});
   <select onchange="sSet(${i},'turf',this.value)"><option value="">— turf —</option><option value="A" ${x.turf=='A'?'selected':''}>Turf A</option><option value="B" ${x.turf=='B'?'selected':''}>Turf B</option></select>
   <span style="flex:1"></span><button class="sm" onclick="sMv(${i},-1)">↑</button><button class="sm" onclick="sMv(${i},1)">↓</button><button class="sm" onclick="sDel(${i})">✕</button></div>
   <div class="sel"><div><label>Team 1</label>${tsel(x.t1,`sSet(${i},'t1',this.value)`)}</div><div><label>Team 2</label>${tsel(x.t2,`sSet(${i},'t2',this.value)`)}</div></div>
-  <input value="${esc(x.note)}" placeholder="Note (optional) — e.g. Semi-final, Lunch break" onchange="sSet(${i},'note',this.value)" style="width:100%;margin-top:8px"></div>`).join('')}
+  <input value="${esc(x.note)}" placeholder="Note (optional) — e.g. Semi-final, Lunch break" onchange="sSet(${i},'note',this.value)" style="width:100%;margin-top:8px">
+  <input list="pls" value="${esc(x.ump||'')}" placeholder="Leg umpire (optional)" onchange="sSet(${i},'ump',this.value)" style="width:100%;margin-top:8px"></div>`).join('')}
  <div class="btns" style="grid-template-columns:1fr"><button class="on" onclick="sAdd()">＋ Add time slot</button></div></section>`}
 function delP(id){const p=P(id);if(confirm('Remove '+p.name+' from the squad?'))cfg(c=>c.players=c.players.filter(x=>x.id!=id))}
 function addP(){const n=$('#np').value.trim();if(!n)return alert('Type the player name first');
@@ -367,7 +370,7 @@ ${schedEd(c)}
 const info=()=>{const c=S.cfg,rl=rlist(c.rules),sc=Object.values(c.sched||{}).filter(x=>x.time||x.t1||x.t2||x.note);let n=0;
  const row=x=>{const two=x.t1&&x.t2,tm=id=>`<span class="dot" style="--c:${T(id).color}"></span><strong>${esc(T(id).name)}</strong>`;
   const top=two?`<span class="pill" style="margin-right:8px">Match ${++n}</span>${tm(x.t1)} <span class="mut">vs</span> ${tm(x.t2)}`:x.t1||x.t2?tm(x.t1||x.t2):`<strong>${esc(x.note||'—')}</strong>`;
-  const sub=[x.turf?'Turf '+x.turf:'',two||x.t1||x.t2?x.note:''].filter(Boolean).map(esc).join(' · ');
+  const sub=[x.turf?'Turf '+x.turf:'',x.ump?'Leg umpire: '+x.ump:'',two||x.t1||x.t2?x.note:''].filter(Boolean).map(esc).join(' · ');
   return `<div class="sch"><b>${esc(x.time||'TBA')}</b><div>${top}${sub?`<div class="mut" style="font-size:13px;margin-top:3px">${sub}</div>`:''}</div></div>`};
  return `<div class="grid"><section class="card"><div class="th"><span>RULES</span>${admin()?'<a class="np" href="#setup" style="padding:6px 14px;font-size:13px">✎ Edit</a>':''}</div>${rl.length?`<ol class="rl">${rl.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>`:'<p class="mut" style="margin-top:14px">Rules will be posted soon.</p>'}</section>
  <section class="card"><div class="th"><span>TENTATIVE SCHEDULE</span>${admin()?'<a class="np" href="#setup" style="padding:6px 14px;font-size:13px">✎ Edit</a>':''}</div>${sc.length?sc.map(row).join(''):'<p class="mut" style="margin-top:14px">Schedule will be posted soon.</p>'}
@@ -378,9 +381,9 @@ const norm=()=>{const c=S.cfg||DEF;S.cfg={teams:c.teams||DEF.teams,players:(c.pl
 function adm2(){if(admin()){delete localStorage.adm;location.hash='live';draw(2)}else location.hash='a'}
 function draw(keep){
  norm();
- const h=v(),adm=['a','b','setup'].includes(h);
+ const h=v(),adm=['a','b','bonus','setup'].includes(h);
  if(adm&&!admin()){if(prompt('Admin PIN')==PIN)localStorage.adm='1';else{location.hash='live';return}}
- const tabs=[['live','Live'],['table','Table'],['awards','Awards'],['info','Rules & Schedule'],...(admin()?[['a','Turf A'],['b','Turf B'],['setup','Setup']]:[])];
+ const tabs=[['live','Live'],['table','Table'],['awards','Awards'],['info','Rules & Schedule'],...(admin()?[['a','Turf A'],['b','Turf B'],['bonus','Bonus'],['setup','Setup']]:[])];
  $('#nav').innerHTML=tabs.map(([k,l])=>`<a href="#${k}" class="np ${h==k?'on':''}">${l}</a>`).join('');
  const all=ms(),lvN=all.filter(m=>m.status=='live').length;
  $('#stats').innerHTML=`<div><b>${all.filter(m=>m.status=='done').length}</b>Played</div><div><b>${lvN}</b>Live now</div><div><b>${all.reduce((a,m)=>a+calc(m,1).r+calc(m,2).r,0)}</b>Total runs</div>`;
@@ -390,7 +393,7 @@ function draw(keep){
  if(h=='setup'&&keep!==2&&document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#setup'))return;
  const f=document.activeElement;if(f&&/^(SELECT|INPUT|TEXTAREA)$/.test(f.tagName)&&adm&&!keep)return;
  const fq=document.activeElement&&document.activeElement.id=='fq',fp=fq?document.activeElement.selectionStart:0;
- $('#app').innerHTML=h=='table'?table():h=='awards'?awards():h=='info'?info():h=='a'?scorer('A'):h=='b'?scorer('B'):h=='setup'?setup():live();
+ $('#app').innerHTML=h=='table'?table():h=='awards'?awards():h=='info'?info():h=='a'?scorer('A'):h=='b'?scorer('B'):h=='bonus'?bonusView():h=='setup'?setup():live();
  if(fq){const e=$('#fq');if(e){e.focus();e.setSelectionRange(fp,fp)}}
 }
 addEventListener('hashchange',()=>draw());draw();
