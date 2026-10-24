@@ -388,7 +388,7 @@ const norm=()=>{const c=S.cfg||DEF;S.cfg={teams:c.teams||DEF.teams,players:(c.pl
 function adm2(){if(admin()){delete localStorage.adm;location.hash='live';draw(2)}else location.hash='a'}
 function draw(keep){
  norm();
- const h=v(),adm=['a','b','bonus','setup'].includes(h);
+ const h=v(),adm=['a','b','bonus','setup','awards'].includes(h);
  if(adm&&!admin()){if(prompt('Admin PIN')==PIN)localStorage.adm='1';else{location.hash='live';return}}
  const tabs=[['live','Live'],['table','Table'],['info','Rules & Schedule'],...(admin()?[['a','Turf A'],['b','Turf B'],['bonus','Bonus'],['setup','Setup'],['awards','Awards']]:[])];
  $('#nav').innerHTML=tabs.map(([k,l])=>`<a href="#${k}" class="np ${h==k?'on':''}">${l}</a>`).join('');
